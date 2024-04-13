@@ -4,16 +4,19 @@ import { fetcher } from "@/lib/utils/fetcher";
 import useTradeStore from "@/store/trade";
 import { Trade } from "@/types/bitmex";
 import { Autocomplete, AutocompleteItem } from "@nextui-org/react";
+import { signOut } from "next-auth/react";
 import { useAsyncList } from "react-stately";
 
 export default function Symbols() {
   const { trade, setTrade } = useTradeStore();
   const list = useAsyncList<Trade>({
     async load({ signal, filterText }) {
-      const { data } = await fetcher.get<Trade[]>(
-        `/api/symbols?query=${filterText}`,
-        { signal }
-      );
+      const { data } = await fetcher.get<Trade[]>("/api/symbols", {
+        signal,
+        params: {
+          query: filterText,
+        },
+      });
 
       return {
         items: data,
