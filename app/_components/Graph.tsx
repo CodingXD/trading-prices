@@ -1,6 +1,6 @@
 "use client";
 
-import useSymbolStore from "@/store/symbol";
+import useTradeStore from "@/store/trade";
 import type { SubscribeData } from "@/types/bitmex";
 import { Button } from "@nextui-org/react";
 import { format } from "date-fns";
@@ -8,57 +8,58 @@ import { createChart } from "lightweight-charts";
 import { useEffect, useRef } from "react";
 
 export default function Graph() {
-  const symbol = useSymbolStore((state) => state.symbol);
+  const trade = useTradeStore((state) => state.trade);
   const ref = useRef<HTMLDivElement>(null);
   let ws: WebSocket | null = null;
 
   useEffect(() => {
-    if (!ref.current || !symbol) return;
+    if (!ref.current || !trade?.symbol) return;
     const chart = createChart(ref.current, { height: 300 });
-    const lineSeries = chart.addLineSeries();
-    lineSeries.setData([
-      { time: "2019-04-11", value: 80.01 },
-      { time: "2019-04-12", value: 96.63 },
-      { time: "2019-04-13", value: 76.64 },
-      { time: "2019-04-14", value: 81.89 },
-      { time: "2019-04-15", value: 74.43 },
-      { time: "2019-04-16", value: 80.01 },
-      { time: "2019-04-17", value: 96.63 },
-      { time: "2019-04-18", value: 76.64 },
-      { time: "2019-04-19", value: 81.89 },
-      { time: "2019-04-20", value: 74.43 },
-    ]);
+    const candleSeries = chart.addCandlestickSeries();
+
+    const data = [] as any[];
 
     ws = new WebSocket(
-      `wss://ws.bitmex.com/realtime?subscribe=instrument,orderBookL2_25:${symbol}`
+      `wss://ws.bitmex.com/realtime?subscribe=instrument,tradeBin1d=${trade.symbol}`
     );
     ws.onerror = (ev) => console.log(ev);
     ws.onmessage = (msg) => {
       const message = JSON.parse(msg.data) as SubscribeData;
       for (let i = 0; i < message.data?.length || 0; i++) {
-        const { timestamp, price } = message.data[i];
-        console.log(message.data);
-        lineSeries.update({
+        const {
+          timestamp,
+          lastPrice = 0,
+          highPrice = 0,
+          lowPrice = 0,
+          openValue = 0,
+        } = message.data[i];
+        console.log(message.data[i]);
+        data.push(message.data[i]);
+        candleSeries.update({
           time: format(timestamp, "yyyy-MM-dd"),
-          value: price,
+          close: lastPrice,
+          high: highPrice,
+          low: lowPrice,
+          open: openValue,
         });
       }
     };
+    ws.onclose = () => console.log(data);
 
     return () => {
       chart.remove();
       ws?.close();
     };
-  }, [symbol]);
+  }, [trade?.symbol]);
 
   useEffect(() => {
-    if (!symbol && ws) ws.close();
-  }, [symbol]);
+    if (!trade?.symbol && ws) ws.close();
+  }, [trade?.symbol]);
 
   return (
-    <>
+    <div className="flex flex-col flex-1 space-y-4">
       <Button onPress={() => ws?.close()}>Stop Listening</Button>
       <div ref={ref} className="w-full"></div>
-    </>
+    </div>
   );
 }

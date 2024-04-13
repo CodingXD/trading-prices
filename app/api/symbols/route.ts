@@ -1,18 +1,29 @@
-import { Trade } from "@/types/bitmex";
+import type { Trade } from "@/types/bitmex";
+import axios from "axios";
+import { subDays } from "date-fns";
 import { type NextRequest, NextResponse } from "next/server";
 
 export async function GET(request: NextRequest) {
-  const url = new URL("https://www.bitmex.com/api/v1/trade");
-  const query = request.nextUrl.searchParams.get("query");
-  if (query) {
-    url.searchParams.set("symbol", query);
+  try {
+    const query = request.nextUrl.searchParams.get("query");
+    const { data } = await axios.get<Trade[]>(
+      "https://www.bitmex.com/api/v1/trade/bucketed",
+      {
+        params: {
+          binSize: "1d",
+          reverse: true,
+          startTime: subDays(new Date(), 30),
+          symbol: query ?? undefined,
+        },
+      }
+    );
+    const responseWithKey = data.map((data, i: number) => ({
+      ...data,
+      key: i,
+      symbol: data.symbol.slice(1),
+    }));
+    return NextResponse.json(responseWithKey);
+  } catch (error) {
+    return NextResponse.json(error, { status: 500 });
   }
-  const resp = await fetch(url.toString());
-  const json = await resp.json();
-  const responseWithKey = json.map((data: Trade, i: number) => ({
-    ...data,
-    key: i,
-    symbol: data.symbol.slice(1),
-  }));
-  return NextResponse.json<Trade>(responseWithKey);
 }
